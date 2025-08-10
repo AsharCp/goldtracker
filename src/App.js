@@ -7,6 +7,10 @@ import About from './pages/About';
 import Rates from './pages/Rates';
 import Admin from './pages/Admin';
 import Home from './pages/Home';
+import Menu from './pages/Menu';
+import View from './pages/View';
+import Summary from './pages/Summary';
+
 
 
 function App() {
@@ -14,10 +18,14 @@ function App() {
     <BrowserRouter>
         <Header />
           <Routes>
-            <Route path="/" Component={Home} />
+            <Route path="/" Component={Menu} />
             <Route path="/about" Component={About} />
             <Route path="/rates" Component={Rates} />
-            <Route path="/goldenvoiceadmin" Component={Admin} />
+            <Route path="/Admin" Component={Admin} />
+            <Route path="/menu/:id" Component={View} />
+            <Route path="/summary" Component={Summary} />
+
+            
           </Routes>
         <Footer />
     </BrowserRouter>

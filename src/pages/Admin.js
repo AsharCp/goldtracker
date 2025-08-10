@@ -1,97 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, onSnapshot, updateDoc, doc } from "firebase/firestore";
+import { db } from "../firebase";
+import { useState, useEffect } from "react";
 
-const Admin = () => {
-  const [rate22, setRate22] = useState('');
-  const [rate24, setRate24] = useState('');
-  const [status, setStatus] = useState('');
-  const [clickCount, setClickCount] = useState(0);
+// A reusable component for displaying a single order card
+const OrderCard = ({ order, children, cardColorClass, statusColorClass }) => (
+  <div className={`p-6 rounded-2xl shadow-lg transition-all duration-300 ease-in-out hover:scale-[1.02] transform ${cardColorClass} text-gray-900 flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0`}>
+    <div className="flex-1">
+      <h2 className="text-2xl font-extrabold tracking-wide">{order.name}</h2>
+      <p className="text-sm italic opacity-80 mt-1">
+        Customer: {order.customerId}
+      </p>
+      <p className="text-sm font-semibold mt-1 text-red-600">
+        Excluded: {order.excludedIngredients?.length > 0
+          ? order.excludedIngredients.join(", ")
+          : "None"}
+      </p>
+      <p className={`text-lg font-bold mt-2 ${statusColorClass}`}>
+        Status: {order.status}
+      </p>
+    </div>
+    {children}
+  </div>
+);
 
-  // Realtime listener for click count
+// Main Admin component
+export default function Admin() {
+  const [orders, setOrders] = useState([]);
+  const [successMessage, setSuccessMessage] = useState("");
+
   useEffect(() => {
-    const ref = doc(db, 'clickStats', 'homeClicks');
-    const unsub = onSnapshot(ref, (docSnap) => {
-      if (docSnap.exists()) {
-        setClickCount(docSnap.data().count || 0);
-      }
+    const unsub = onSnapshot(collection(db, "orders"), (snapshot) => {
+      setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
-
     return () => unsub();
   }, []);
 
-  const handleUpdate = async () => {
-    try {
-      const currentRef = doc(db, 'goldRates', 'current');
-      const previousRef = doc(db, 'goldRates', 'previous');
-
-      // Move current values to 'previous'
-      const currentSnap = await getDoc(currentRef);
-      if (currentSnap.exists()) {
-        await setDoc(previousRef, currentSnap.data());
-      }
-
-      // Update new values to 'current'
-      await updateDoc(currentRef, {
-        '22K': parseFloat(rate22),
-        '24K': parseFloat(rate24),
-      });
-
-      setStatus('✅ Gold rates updated successfully!');
-      alert('✅ Gold rates updated successfully!');
-    } catch (error) {
-      console.error('Error updating rates:', error);
-      setStatus('❌ Failed to update rates. Please try again.');
-      alert('❌ Failed to update rates. Please try again.');
-    }
+  const markReady = async (id) => {
+    await updateDoc(doc(db, "orders", id), { status: "Food is Ready" });
+    setSuccessMessage("Order status updated successfully!");
+    setTimeout(() => setSuccessMessage(""), 3000);
   };
 
+  // Filter orders:
+  // Pending orders only include those with status "Cooking"
+  const pendingOrders = orders.filter(o => o.status === "Cooking");
+  // Completed orders include all orders that are NOT "Cooking"
+  const completedOrders = orders.filter(o => o.status !== "Cooking");
+
   return (
-    <div className="bg-gray-100 p-6 pt-12 flex justify-center">
-      <div className="bg-white shadow-lg rounded-xl p-4 w-full max-w-md">
-        {/* Page Visit Count */}
-        <div className="mb-6 text-center">
-          <p className="text-lg font-semibold text-gray-700">Total Page Visits</p>
-          <p className="text-2xl font-bold text-yellow-600">{clickCount}</p>
+    <div className="min-h-screen bg-gray-100 p-8 md:p-12 font-sans">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-800 tracking-tight leading-tight">
+            Admin Dashboard 📋
+          </h1>
+          <p className="text-lg text-gray-500 mt-2">
+            Manage all customer orders in one place.
+          </p>
         </div>
 
-        <h2 className="text-2xl font-bold text-yellow-600 mb-4 text-center">Update Gold Rates</h2>
-
-        <div className="mb-3">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">22K Gold Rate (1 gram)</label>
-          <input
-            type="number"
-            value={rate22}
-            onChange={(e) => setRate22(e.target.value)}
-            className="w-full border border-yellow-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-yellow-500"
-            placeholder="Enter 22K rate"
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-1">24K Gold Rate (1 gram)</label>
-          <input
-            type="number"
-            value={rate24}
-            onChange={(e) => setRate24(e.target.value)}
-            className="w-full border border-yellow-300 rounded px-3 py-2 focus:outline-none focus:ring focus:border-yellow-500"
-            placeholder="Enter 24K rate"
-          />
-        </div>
-
-        <button
-          onClick={handleUpdate}
-          className="w-full bg-yellow-500 text-white font-semibold py-2 rounded hover:bg-yellow-600 transition"
-        >
-          Update Rates
-        </button>
-
-        {status && (
-          <p className="text-sm mt-3 text-center text-gray-600">{status}</p>
+        {/* Success Message */}
+        {successMessage && (
+          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded-lg animate-fade-in-down" role="alert">
+            <p className="font-bold">Success!</p>
+            <p>{successMessage}</p>
+          </div>
         )}
+
+        {/* Pending Orders Section */}
+        <section className="mb-12">
+          <h2 className="text-3xl font-bold text-gray-800 mb-6 border-b-2 border-orange-500 pb-2 flex items-center gap-2">
+            Pending Orders <span className="text-orange-500">⏳</span>
+          </h2>
+          <div className="grid gap-6">
+            {pendingOrders.length === 0 ? (
+              <div className="bg-white p-6 rounded-xl shadow-md text-center text-gray-500 text-lg">
+                <p>No new orders to cook! Take a break. 🧘</p>
+              </div>
+            ) : (
+              pendingOrders.map(order => (
+                <OrderCard 
+                  key={order.id} 
+                  order={order} 
+                  cardColorClass="bg-white"
+                  statusColorClass="text-red-500"
+                >
+                  <button
+                    onClick={() => markReady(order.id)}
+                    className="bg-blue-600 text-white font-bold py-3 px-6 rounded-full shadow-md hover:bg-blue-700 transition-colors duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 mt-4 md:mt-0"
+                  >
+                    Cooking Finished
+                  </button>
+                </OrderCard>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* Completed Orders Section */}
+        <section>
+          <h2 className="text-3xl font-bold text-gray-800 mb-6 border-b-2 border-green-500 pb-2 flex items-center gap-2">
+            Completed Orders <span className="text-green-500">✅</span>
+          </h2>
+          <div className="grid gap-6">
+            {completedOrders.length === 0 ? (
+              <div className="bg-white p-6 rounded-xl shadow-md text-center text-gray-500 text-lg">
+                <p>No orders have been completed yet. Let's get cooking! 🧑‍🍳</p>
+              </div>
+            ) : (
+              completedOrders.map(order => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  cardColorClass={
+                    order.status === "Food is Ready" ? "bg-green-100" : "bg-yellow-100"
+                  }
+                  statusColorClass={
+                    order.status === "Food is Ready" ? "text-green-600" : "text-yellow-700"
+                  }
+                />
+              ))
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
-};
-
-export default Admin;
+}
